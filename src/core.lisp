@@ -1,12 +1,15 @@
 (in-package #:helenium)
 
-#| env |#
+
+;; environment
 
 (declaim (optimize safety))
 
 (setf *print-case* :downcase)
 
 (toggle-pretty-print-hash-table t)
+
+#|
 
 #| global |#
 
@@ -72,7 +75,7 @@
 #| middleware |#
 
 (defun @json (next)
-  (setf (hct:content-type*) "application/json")
+  (setf (hct:content-type*) "*app*lication/json")
   (funcall next)) 
 
 (defun @auth (next)
@@ -95,21 +98,60 @@
               (string= password "abc123!@#"))
          (responsify :success "matched" (list (cons :token (tokenize email))))
          (responsify :fail "not match" (list (cons :token "not generated.")))))))
+|#
 
 #| control |#
 
-(defvar app
-  (make-instance 'easy-routes:routes-acceptor :port port-no))
+(defparameter x nil)
 
-(defun start ()
-  (print "server started.")
-  (hct:start app))
+(defun slurp-request-body (req)
+  "Function for get request content"
+  (let ((raw-body (getf req :raw-body))
+        (content-length (getf req :content-length)))
+    (if (not raw-body)
+        nil
+        (prog1
+            (hbu:slurp-stream raw-body content-length)
+          (file-position raw-body 0)))))
 
-(defun stop ()
-  (print "server stopped.")
-  (hct:stop app))
+(defun to-alist (req-body)
+  "Function for get request content as JSON"
+  (let ((s (flexi-streams:octets-to-string req-body)))
+    (jonathan:parse s :as :alist)))
 
-(defun refresh ()
-  (print "server resetting.")
-  (hct:stop app)
-  (hct:start app))
+(defun parse-body-mw (handler)
+  (lambda (req)
+    (let ((body (to-alist (slurp-request-body req))))
+      (remf req :raw-body)
+      (setf (getf req :body) body)   
+      (funcall handler req))))
+
+(defun handler ()
+  (lambda (req)
+    (setq x req)
+    '(200
+      (:content-type "text/json")
+      ("{444: 999}"))))
+
+(defvar port-number 3000)
+
+(defvar *app* nil)
+
+(defun init ()
+  (setq *app* (clack:clackup
+               (parse-body-mw (handler))
+               :server :woo
+               :port port-number))
+  "server started.")
+
+(defun halt ()
+  (if *app*
+      (progn (clack:stop *app*)
+             (setq *app* nil)
+             "server stopped.")
+      "server is not running."))
+
+(defun reset ()
+  (halt)
+  (init)
+  "server is reset.")

@@ -11,10 +11,12 @@
                :arrow-macros
                :babel
                :cl-json
-               :easy-routes
+               :clack
                :fiveam
-               :hunchentoot
+               :flexi-streams
+               :http-body
                :ironclad
                :jose
                :serapeum
-               :uuid))
+               :uuid
+               :woo))
